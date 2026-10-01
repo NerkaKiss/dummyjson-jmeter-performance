@@ -1,0 +1,372 @@
+name: JMeter Performance Tests
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "test-plans/**"
+      - "data/**"
+      - ".github/workflows/**"
+  schedule:
+    - cron: "0 2 * * *"
+  workflow_dispatch:
+    inputs:
+      test_type:
+        description: "Which test to run?"
+        required: true
+        default: "load"
+        type: choice
+        options:
+          - smoke
+          - load
+          - stress
+          - all
+      deploy_pages:
+        description: "Deploy report to GitHub Pages?"
+        required: true
+        default: true
+        type: boolean
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: "pages"
+  cancel-in-progress: false
+
+jobs:
+  smoke:
+    name: Smoke Test
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    if: |
+      github.event_name == 'push' ||
+      (github.event_name == 'workflow_dispatch' &&
+       (inputs.test_type == 'smoke' || inputs.test_type == 'all'))
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: "temurin"
+          java-version: "17"
+
+      - name: Cache JMeter
+        uses: actions/cache@v4
+        with:
+          path: apache-jmeter-5.6.3
+          key: jmeter-5.6.3
+
+      - name: Install JMeter
+        run: |
+          if [ ! -d "apache-jmeter-5.6.3" ]; then
+            wget -q https://archive.apache.org/dist/jmeter/binaries/apache-jmeter-5.6.3.tgz
+            tar -xzf apache-jmeter-5.6.3.tgz
+          fi
+          echo "$PWD/apache-jmeter-5.6.3/bin" >> $GITHUB_PATH
+
+      - name: Run Smoke Test
+        run: |
+          jmeter -n \
+            -t test-plans/smoke-login.jmx \
+            -l smoke.jtl \
+            -e -o reports/smoke
+
+      - name: Upload Smoke Report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: smoke-report
+          path: reports/smoke/
+          retention-days: 7
+
+      - name: Upload JMeter Logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: smoke-logs
+          path: jmeter.log
+          if-no-files-found: ignore
+          retention-days: 7
+
+  load:
+    name: Load Test
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    if: |
+      github.event_name == 'push' ||
+      github.event_name == 'schedule' ||
+      (github.event_name == 'workflow_dispatch' &&
+       (inputs.test_type == 'load' || inputs.test_type == 'all'))
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: "temurin"
+          java-version: "17"
+
+      - name: Cache JMeter
+        uses: actions/cache@v4
+        with:
+          path: apache-jmeter-5.6.3
+          key: jmeter-5.6.3
+
+      - name: Install JMeter
+        run: |
+          if [ ! -d "apache-jmeter-5.6.3" ]; then
+            wget -q https://archive.apache.org/dist/jmeter/binaries/apache-jmeter-5.6.3.tgz
+            tar -xzf apache-jmeter-5.6.3.tgz
+          fi
+          echo "$PWD/apache-jmeter-5.6.3/bin" >> $GITHUB_PATH
+
+      - name: Run Load Test
+        run: |
+          jmeter -n \
+            -t test-plans/load-login.jmx \
+            -l load.jtl \
+            -e -o reports/load
+
+      - name: Upload Load Report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: load-report
+          path: reports/load/
+          retention-days: 7
+
+      - name: Upload JMeter Logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: load-logs
+          path: jmeter.log
+          if-no-files-found: ignore
+          retention-days: 7
+
+      - name: Upload JTL Results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: load-jtl
+          path: load.jtl
+          if-no-files-found: ignore
+          retention-days: 7
+
+  stress:
+    name: Stress Test
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    if: |
+      github.event_name == 'workflow_dispatch' &&
+      (inputs.test_type == 'stress' || inputs.test_type == 'all')
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: "temurin"
+          java-version: "17"
+
+      - name: Cache JMeter
+        uses: actions/cache@v4
+        with:
+          path: apache-jmeter-5.6.3
+          key: jmeter-5.6.3
+
+      - name: Install JMeter
+        run: |
+          if [ ! -d "apache-jmeter-5.6.3" ]; then
+            wget -q https://archive.apache.org/dist/jmeter/binaries/apache-jmeter-5.6.3.tgz
+            tar -xzf apache-jmeter-5.6.3.tgz
+          fi
+          echo "$PWD/apache-jmeter-5.6.3/bin" >> $GITHUB_PATH
+
+      - name: Run Stress Test
+        run: |
+          jmeter -n \
+            -t test-plans/stress-login.jmx \
+            -l stress.jtl \
+            -e -o reports/stress
+
+      - name: Upload Stress Report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: stress-report
+          path: reports/stress/
+          retention-days: 7
+
+      - name: Upload JMeter Logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: stress-logs
+          path: jmeter.log
+          if-no-files-found: ignore
+          retention-days: 7
+
+      - name: Upload JTL Results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: stress-jtl
+          path: stress.jtl
+          if-no-files-found: ignore
+          retention-days: 7
+
+  deploy:
+    name: Deploy Reports to GitHub Pages
+    needs: [smoke, load, stress]
+    if: |
+      always() &&
+      (github.event_name == 'push' ||
+       github.event_name == 'schedule' ||
+       (github.event_name == 'workflow_dispatch' && inputs.deploy_pages))
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Download all reports
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts/
+
+      - name: Prepare reports directory
+        run: |
+          mkdir -p reports
+          for dir in artifacts/*/; do
+            name=$(basename "$dir")
+            if [ "$name" != "smoke-logs" ] && [ "$name" != "load-logs" ] && [ "$name" != "stress-logs" ] && [ "$name" != "load-jtl" ] && [ "$name" != "stress-jtl" ]; then
+              cp -r "$dir" "reports/$name"
+            fi
+          done
+
+      - name: Create index.html
+        run: |
+          cat > reports/index.html << 'EOF'
+          <!DOCTYPE html>
+          <html lang="en">
+          <head>
+            <meta charset="UTF-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1.0">
+            <title>JMeter Performance Reports</title>
+            <style>
+              * { box-sizing: border-box; margin: 0; padding: 0; }
+              body {
+                font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+                max-width: 800px;
+                margin: 0 auto;
+                padding: 40px 20px;
+                background: #f8f9fa;
+                color: #212529;
+              }
+              h1 { margin-bottom: 10px; }
+              .subtitle { color: #6c757d; margin-bottom: 30px; }
+              ul { list-style: none; padding: 0; }
+              li {
+                margin: 12px 0;
+                padding: 20px;
+                background: white;
+                border-radius: 8px;
+                box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+                transition: transform 0.2s, box-shadow 0.2s;
+              }
+              li:hover {
+                transform: translateY(-2px);
+                box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+              }
+              a {
+                color: #0066cc;
+                text-decoration: none;
+                font-weight: 600;
+                font-size: 18px;
+                display: block;
+              }
+              a:hover { text-decoration: underline; }
+              .description {
+                color: #6c757d;
+                font-size: 14px;
+                margin-top: 6px;
+              }
+              .badge {
+                display: inline-block;
+                padding: 4px 10px;
+                border-radius: 12px;
+                font-size: 12px;
+                font-weight: 600;
+                margin-left: 8px;
+              }
+              .badge-smoke { background: #d4edda; color: #155724; }
+              .badge-load { background: #cce5ff; color: #004085; }
+              .badge-stress { background: #f8d7da; color: #721c24; }
+              footer {
+                margin-top: 40px;
+                text-align: center;
+                color: #6c757d;
+                font-size: 13px;
+              }
+            </style>
+          </head>
+          <body>
+            <h1>JMeter Performance Reports</h1>
+            <p class="subtitle">Automated performance testing for DummyJSON API</p>
+            <ul>
+              <li>
+                <a href="smoke-report/">Smoke Test Report</a>
+                <span class="badge badge-smoke">10 users</span>
+                <div class="description">Quick check on every commit</div>
+              </li>
+              <li>
+                <a href="load-report/">Load Test Report</a>
+                <span class="badge badge-load">50 users</span>
+                <div class="description">Normal load testing</div>
+              </li>
+              <li>
+                <a href="stress-report/">Stress Test Report</a>
+                <span class="badge badge-stress">200 users</span>
+                <div class="description">Find breaking point (manual only)</div>
+              </li>
+            </ul>
+            <footer>
+              <p>Generated automatically via GitHub Actions</p>
+              <p>Last updated: $(date -u +"%Y-%m-%d %H:%M UTC")</p>
+            </footer>
+          </body>
+          </html>
+          EOF
+          # Įrašyk datą
+          sed -i "s/\$(date -u +\"%Y-%m-%d %H:%M UTC\")/$(date -u +"%Y-%m-%d %H:%M UTC")/" reports/index.html
+
+      - name: Configure GitHub Pages
+        uses: actions/configure-pages@v5
+
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: reports/
+
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
