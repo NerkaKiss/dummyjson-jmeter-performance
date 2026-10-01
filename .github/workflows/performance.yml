@@ -109,7 +109,7 @@ jobs:
           docker run --rm \
             -v $PWD:/jmeter \
             -w /jmeter \
-            justb4/jmeter:5.6.3 \
+            justb4/jmeter:5.5 \
             -n -t test-plans/load-login.jmx \
             -l load.jtl \
             -e -o reports/load
@@ -159,7 +159,7 @@ jobs:
           docker run --rm \
             -v $PWD:/jmeter \
             -w /jmeter \
-            justb4/jmeter:5.6.3 \
+            justb4/jmeter:5.5 \
             -n -t test-plans/stress-login.jmx \
             -l stress.jtl \
             -e -o reports/stress
