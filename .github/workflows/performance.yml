@@ -57,7 +57,7 @@ jobs:
           docker run --rm \
             -v $PWD:/jmeter \
             -w /jmeter \
-            justb4/jmeter:5.6.3 \
+            justb4/jmeter:5.5 \
             -n -t test-plans/smoke-login.jmx \
             -l smoke.jtl \
             -e -o reports/smoke
